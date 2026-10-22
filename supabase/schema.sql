@@ -42,6 +42,11 @@ create table if not exists public.destinations (
   created_at timestamptz not null default now()
 );
 
+-- Couleur du pin sur la carte (#rrggbb) ; null = couleur par défaut.
+-- Ajoutée après coup : "add column if not exists" la crée aussi sur une base existante.
+alter table public.destinations
+  add column if not exists couleur text check (couleur ~ '^#[0-9a-f]{6}$');
+
 create table if not exists public.sejours (
   id             uuid primary key default gen_random_uuid(),
   destination_id uuid not null references public.destinations (id) on delete cascade,

@@ -4,7 +4,9 @@ import {
 } from './db.js';
 import { removePhotos } from './photos.js';
 import { initAuth, onAuthChange, isEditor, currentEditor, signIn, signOut } from './auth.js';
-import { createMap, onMapClick, renderPins, setActivePin, flyTo, refreshMapSize } from './map.js';
+import {
+  createMap, onMapClick, renderPins, setActivePin, flyTo, refreshMapSize, PIN_COLORS, DEFAULT_PIN_COLOR,
+} from './map.js';
 import { searchPlaces, reversePlace } from './geocode.js';
 import { initSheet, openSheet, closeSheet, currentDestination } from './sheet.js';
 import { openForm, confirmDialog, toast, esc } from './ui.js';
@@ -45,19 +47,24 @@ function selectDestination(destination) {
 }
 
 // ---------- Ajout, modification, suppression d'une destination ----------
+// Champs communs aux formulaires d'ajout et de modification
+const destinationFields = (destination) => [
+  { name: 'nom', label: 'Ville ou région', value: destination.nom, required: true, attrs: 'maxlength="120"' },
+  { name: 'pays', label: 'Pays', value: destination.pays, attrs: 'maxlength="80"' },
+  { name: 'couleur', label: 'Couleur du pin', type: 'swatches', value: destination.couleur ?? DEFAULT_PIN_COLOR, options: PIN_COLORS },
+];
+
 async function addDestination(place) {
   const created = await openForm({
     title: 'Nouvelle destination',
-    fields: [
-      { name: 'nom', label: 'Ville ou région', value: place.nom, required: true, attrs: 'maxlength="120"' },
-      { name: 'pays', label: 'Pays', value: place.pays, attrs: 'maxlength="80"' },
-    ],
+    fields: destinationFields(place),
     submitLabel: 'Ajouter',
     onSubmit: async (values) => {
       try {
         return await createDestination({
           nom: values.nom.trim(),
           pays: values.pays.trim() || null,
+          couleur: values.couleur || null,
           lat: place.lat,
           lng: place.lng,
         });
@@ -75,15 +82,13 @@ async function addDestination(place) {
 async function editDestination(destination) {
   const updated = await openForm({
     title: 'Modifier la destination',
-    fields: [
-      { name: 'nom', label: 'Ville ou région', value: destination.nom, required: true, attrs: 'maxlength="120"' },
-      { name: 'pays', label: 'Pays', value: destination.pays, attrs: 'maxlength="80"' },
-    ],
+    fields: destinationFields(destination),
     onSubmit: async (values) => {
       try {
         return await updateDestination(destination.id, {
           nom: values.nom.trim(),
           pays: values.pays.trim() || null,
+          couleur: values.couleur || null,
         });
       } catch (error) {
         throw new Error(errorMessage(error));

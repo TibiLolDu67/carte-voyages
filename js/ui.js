@@ -30,6 +30,26 @@ function fieldHtml(field, index) {
   if (field.type === 'hidden') {
     return `<input type="hidden" name="${esc(field.name)}" value="${esc(value)}">`;
   }
+  if (field.type === 'swatches') {
+    // Choix de couleur : boutons radio présentés en pastilles
+    const swatches = field.options.map((o) => `
+      <label class="swatch" title="${esc(o.label)}">
+        <input type="radio" name="${esc(field.name)}" value="${esc(o.value)}" ${o.value === value ? 'checked' : ''}>
+        <span style="background:${esc(o.value)}"></span>
+        <span class="sr-only">${esc(o.label)}</span>
+      </label>`).join('');
+    // Dernière pastille : couleur libre, via le sélecteur de couleur du système
+    const isCustom = Boolean(value) && !field.options.some((o) => o.value === value);
+    const customValue = isCustom ? value : '#ff69b4';
+    const custom = `
+      <label class="swatch swatch-custom" title="Autre couleur">
+        <input type="radio" name="${esc(field.name)}" value="${esc(customValue)}" data-custom-radio ${isCustom ? 'checked' : ''}>
+        <span data-custom-preview ${isCustom ? `style="background:${esc(customValue)}"` : ''}></span>
+        <span class="sr-only">Autre couleur</span>
+        <input type="color" value="${esc(customValue)}" data-custom-color aria-label="Choisir une autre couleur">
+      </label>`;
+    return `<fieldset class="field"><legend>${esc(field.label)}</legend><div class="swatches">${swatches}${custom}</div></fieldset>`;
+  }
   let control;
   if (field.type === 'textarea') {
     control = `<textarea ${common}>${esc(value)}</textarea>`;
@@ -72,6 +92,16 @@ export function openForm({ title, intro = '', fields, submitLabel = 'Enregistrer
     };
     form.querySelector('[data-cancel]').addEventListener('click', () => close(null));
     modal.oncancel = (event) => { event.preventDefault(); close(null); };
+
+    // Couleur libre : la valeur choisie devient celle de la pastille « Autre couleur »
+    form.addEventListener('input', (event) => {
+      if (!event.target.matches('[data-custom-color]')) return;
+      const swatch = event.target.closest('.swatch-custom');
+      const radio = swatch.querySelector('[data-custom-radio]');
+      radio.value = event.target.value.toLowerCase();
+      radio.checked = true;
+      swatch.querySelector('[data-custom-preview]').style.background = radio.value;
+    });
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();

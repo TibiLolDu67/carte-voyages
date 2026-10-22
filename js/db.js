@@ -14,7 +14,7 @@ function unwrap({ data, error }) {
 
 // ---------- Destinations ----------
 export async function listDestinations() {
-  return unwrap(await supabase.from('destinations').select('id, nom, pays, lat, lng').order('nom'));
+  return unwrap(await supabase.from('destinations').select('id, nom, pays, lat, lng, couleur').order('nom'));
 }
 
 export async function createDestination(destination) {
@@ -40,7 +40,7 @@ export async function listPhotoPaths(destinationId) {
 export async function getDestinationDetails(id) {
   return unwrap(await supabase
     .from('destinations')
-    .select(`id, nom, pays, lat, lng,
+    .select(`id, nom, pays, lat, lng, couleur,
       sejours (id, date_debut, date_fin, photo_path,
         lieux (id, nom, note, created_at),
         specialites (id, nom, note_1_5, avis, auteur_id, created_at)),
