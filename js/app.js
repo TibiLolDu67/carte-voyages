@@ -29,10 +29,33 @@ new ResizeObserver(() => {
   refreshMapSize();
 }).observe(topbar);
 
+// ---------- Accueil ↔ carte (l'adresse se termine par #carte quand la carte est affichée) ----------
+const homeStats = document.getElementById('home-stats');
+
+function showRoute() {
+  const onMap = location.hash === '#carte';
+  document.body.classList.toggle('on-home', !onMap);
+  if (onMap) {
+    refreshMapSize();
+  } else {
+    hideResults();
+    setAddMode(false);
+  }
+}
+window.addEventListener('hashchange', showRoute);
+
+// Petit compteur affiché sur l'accueil
+function updateHomeStats() {
+  const countries = new Set(destinations.map((d) => d.pays).filter(Boolean)).size;
+  const n = destinations.length;
+  homeStats.textContent = n ? `${n} destination${n > 1 ? 's' : ''} · ${countries} pays` : '';
+}
+
 // ---------- Chargement des destinations ----------
 async function loadDestinations() {
   try {
     destinations = await listDestinations();
+    updateHomeStats();
     renderPins(destinations, selectDestination);
     setActivePin(currentDestination()?.id ?? null);
   } catch (error) {
@@ -263,4 +286,5 @@ onAuthChange(({ user, editor }) => {
 });
 
 initAuth();
+showRoute();
 loadDestinations();

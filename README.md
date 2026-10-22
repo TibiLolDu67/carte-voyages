@@ -1,4 +1,4 @@
-# Carte de nos voyages
+# Bibou Travel — carte de nos voyages
 
 Carte du monde partagée de nos destinations : séjours, lieux visités, photo préférée,
 spécialités goûtées et commentaires. Lecture publique, écriture réservée à Victor et Emilie.

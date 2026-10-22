@@ -44,6 +44,7 @@ const pinIcon = (color, active) => L.divIcon({
 
 export function createMap(element) {
   map = L.map(element, { worldCopyJump: true, zoomControl: true }).setView([35, 10], 3);
+  // Tuiles OpenStreetMap (sans clé) ; leurs couleurs sont adoucies en CSS (.leaflet-tile-pane)
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',

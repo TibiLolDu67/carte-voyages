@@ -3,18 +3,37 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Carte de nos voyages</title>
-  <meta name="description" content="La carte de nos destinations : séjours, lieux, photos, spécialités et commentaires.">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>">
+  <title>Bibou Travel</title>
+  <meta name="description" content="Bibou Travel : la carte de nos voyages, avec nos séjours, lieux, photos, spécialités et commentaires.">
+  <meta name="theme-color" content="#16222e">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏔️</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="preload" as="image" href="assets/accueil.webp">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
-  <!-- Barre du haut : titre, recherche, actions -->
+  <!-- Choisit accueil ou carte avant le premier affichage (évite un flash de l'accueil) -->
+  <script>if (location.hash !== '#carte') document.body.classList.add('on-home');</script>
+  <!-- Page d'accueil (affichée tant que l'adresse ne se termine pas par #carte) -->
+  <section id="home" class="home" aria-labelledby="home-title">
+    <img class="home-photo" src="assets/accueil.webp" alt="Nous deux de dos, en randonnée sur un chemin de montagne face aux glaciers" fetchpriority="high">
+    <div class="home-overlay"></div>
+    <div class="home-content">
+      <p class="home-kicker">Carnet de voyages</p>
+      <h1 id="home-title" class="home-title">Bibou <em>Travel</em></h1>
+      <p id="home-stats" class="home-stats"></p>
+      <a href="#carte" class="home-cta">Ouvrir la carte du monde <span aria-hidden="true">→</span></a>
+    </div>
+  </section>
+
+  <!-- Barre du haut : titre (retour à l'accueil), recherche, actions -->
   <header class="topbar">
-    <h1 class="title">Carte de nos voyages</h1>
+    <p class="title"><a href="#" aria-label="Bibou Travel, retour à l'accueil">Bibou Travel</a></p>
     <form id="search-form" class="search" role="search" autocomplete="off">
       <input id="search-input" type="search" placeholder="Rechercher une ville…" aria-label="Rechercher une ville" required>
       <button type="submit" class="btn btn-icon" aria-label="Rechercher">🔍</button>
