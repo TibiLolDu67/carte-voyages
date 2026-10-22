@@ -1,0 +1,13 @@
+# Secrets éventuels (la clé service_role ne doit jamais être versionnée)
+.env
+.env.*
+*.local
+
+# Réglages locaux de Claude Code (launch.json reste versionné)
+.claude/settings.local.json
+
+# Système / éditeurs
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/

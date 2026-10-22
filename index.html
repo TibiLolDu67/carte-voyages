@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Carte de nos voyages</title>
+  <meta name="description" content="La carte de nos destinations : séjours, lieux, photos, spécialités et commentaires.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <!-- Barre du haut : titre, recherche, actions -->
+  <header class="topbar">
+    <h1 class="title">Carte de nos voyages</h1>
+    <form id="search-form" class="search" role="search" autocomplete="off">
+      <input id="search-input" type="search" placeholder="Rechercher une ville…" aria-label="Rechercher une ville" required>
+      <button type="submit" class="btn btn-icon" aria-label="Rechercher">🔍</button>
+    </form>
+    <div class="topbar-actions">
+      <button id="add-mode-btn" class="btn btn-primary editor-only" type="button" aria-pressed="false">＋ Pin</button>
+      <button id="auth-btn" class="btn" type="button">Connexion</button>
+    </div>
+  </header>
+
+  <!-- Résultats de recherche -->
+  <div id="search-results" class="search-results" hidden></div>
+
+  <!-- Bandeau du mode ajout -->
+  <div id="add-banner" class="banner" hidden>Touchez la carte pour placer le pin</div>
+
+  <!-- Carte plein écran -->
+  <main id="map" aria-label="Carte du monde"></main>
+
+  <!-- Fiche destination (panneau latéral sur PC, panneau bas sur mobile) -->
+  <aside id="sheet" class="sheet" hidden aria-labelledby="sheet-title"></aside>
+
+  <!-- Fenêtre modale générique (formulaires, confirmations) -->
+  <dialog id="modal" class="modal"></dialog>
+
+  <!-- Messages courts -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
