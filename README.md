@@ -48,7 +48,7 @@ il faut un petit serveur local.
 
 1. Créer un projet Supabase (plan gratuit, sans carte bancaire).
 2. **SQL Editor** : exécuter tout `supabase/schema.sql`.
-3. Exécuter `supabase/verification.sql` : résultat attendu `6 | 21 | 4 | true | 409600`.
+3. Exécuter `supabase/verification.sql` : résultat attendu `8 | 29 | 4 | true | 409600`.
 4. **Authentication > Sign In / Providers** : désactiver « Allow new users to sign up »,
    puis enregistrer (l'intitulé peut évoluer).
 5. **Authentication > Users** : créer les comptes (« Add user », cocher « Auto Confirm User »).

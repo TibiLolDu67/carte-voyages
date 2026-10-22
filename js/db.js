@@ -17,6 +17,31 @@ export async function listDestinations() {
   return unwrap(await supabase.from('destinations').select('id, nom, pays, lat, lng, couleur').order('nom'));
 }
 
+// ---------- Roadtrips ----------
+// Chaque roadtrip avec ses étapes numérotées (une destination peut revenir plusieurs fois)
+export async function listRoadtrips() {
+  return unwrap(await supabase
+    .from('roadtrips')
+    .select('id, nom, couleur, roadtrip_etapes (destination_id, position)')
+    .order('created_at')
+    .order('position', { referencedTable: 'roadtrip_etapes' }));
+}
+
+// Crée ou modifie un roadtrip, puis remplace ses étapes par la liste ordonnée fournie
+export async function saveRoadtrip(id, row, destinationIds) {
+  const roadtrip = id
+    ? unwrap(await supabase.from('roadtrips').update(row).eq('id', id).select().single())
+    : unwrap(await supabase.from('roadtrips').insert(row).select().single());
+  // Fonction SQL : suppression + réinsertion des étapes en une seule transaction
+  unwrap(await supabase.rpc('set_roadtrip_etapes', { p_roadtrip: roadtrip.id, p_destinations: destinationIds }));
+  return roadtrip;
+}
+
+// Les destinations restent ; seules les étapes partent avec le roadtrip (cascade)
+export async function deleteRoadtrip(id) {
+  unwrap(await supabase.from('roadtrips').delete().eq('id', id));
+}
+
 export async function createDestination(destination) {
   return unwrap(await supabase.from('destinations').insert(destination).select().single());
 }

@@ -2,13 +2,13 @@
 -- Contrôle après exécution de schema.sql (lecture seule)
 -- L'éditeur SQL n'affiche que le résultat de la DERNIÈRE requête :
 -- tout est donc regroupé en une seule ligne de résultat.
--- Résultat attendu : tables_rls = 6, politiques_public = 21,
+-- Résultat attendu : tables_rls = 8, politiques_public = 29,
 -- politiques_photos = 4, bucket_public = true, bucket_limite = 409600
 -- =====================================================================
 select
   (select count(*) from pg_tables
     where schemaname = 'public' and rowsecurity
-      and tablename in ('editeurs', 'destinations', 'sejours', 'lieux', 'specialites', 'commentaires')
+      and tablename in ('editeurs', 'destinations', 'sejours', 'lieux', 'specialites', 'commentaires', 'roadtrips', 'roadtrip_etapes')
   ) as tables_rls,
   (select count(*) from pg_policies where schemaname = 'public') as politiques_public,
   (select count(*) from pg_policies

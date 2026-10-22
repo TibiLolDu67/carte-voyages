@@ -35,12 +35,41 @@ export const DEFAULT_PIN_COLOR = PIN_COLORS[0].value;
 // N'accepte qu'une couleur #rrggbb (sinon couleur par défaut)
 const safeColor = (color) => (/^#[0-9a-f]{6}$/.test(color ?? '') ? color : DEFAULT_PIN_COLOR);
 
-const pinIcon = (color, active) => L.divIcon({
-  className: `pin${active ? ' is-active' : ''}`,
-  html: `<span style="background:${safeColor(color)}"></span>`,
+// Roadtrips : tracé visible seulement à partir de ce zoom (pour ne pas charger la vue monde)
+const ROADTRIP_MIN_ZOOM = 5;
+const DEFAULT_ROADTRIP_COLOR = '#111827';
+let roadtripLayer = null;
+
+// ring = couleur du roadtrip : le pin reçoit alors un contour de cette couleur
+// step = numéro(s) d'étape affichés sur le pin quand on zoome (ex. « 1·8 »)
+const pinIcon = ({ color, ring, step }, active) => L.divIcon({
+  className: `pin${active ? ' is-active' : ''}${ring ? ' in-roadtrip' : ''}`,
+  html: `<span style="background:${safeColor(color)}${ring ? `;border-color:${ring}` : ''}"></span>`
+    + (step ? `<b class="pin-step" style="background:${ring}">${step}</b>` : ''),
   iconSize: [44, 44],
   iconAnchor: [22, 40],
 });
+
+export const roadtripColor = (roadtrip) =>
+  (/^#[0-9a-f]{6}$/.test(roadtrip?.couleur ?? '') ? roadtrip.couleur : DEFAULT_ROADTRIP_COLOR);
+
+// Étapes d'un roadtrip dans l'ordre choisi (positions 1, 2, 3…), doublons compris
+export function roadtripStops(destinations, roadtrip) {
+  const byId = new Map(destinations.map((d) => [d.id, d]));
+  return [...(roadtrip?.roadtrip_etapes ?? [])]
+    .sort((a, b) => a.position - b.position)
+    .map((etape) => byId.get(etape.destination_id))
+    .filter(Boolean);
+}
+
+// Affiche ou masque tracés et numéros d'étape selon le zoom
+function updateRoadtripVisibility() {
+  const visible = map.getZoom() >= ROADTRIP_MIN_ZOOM;
+  map.getContainer().classList.toggle('show-roadtrip-steps', visible);
+  if (!roadtripLayer) return;
+  if (visible && !map.hasLayer(roadtripLayer)) roadtripLayer.addTo(map);
+  if (!visible && map.hasLayer(roadtripLayer)) roadtripLayer.remove();
+}
 
 export function createMap(element) {
   map = L.map(element, { worldCopyJump: true, zoomControl: true }).setView([35, 10], 3);
@@ -49,6 +78,7 @@ export function createMap(element) {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(map);
+  map.on('zoomend', updateRoadtripVisibility);
   return map;
 }
 
@@ -56,31 +86,71 @@ export function onMapClick(callback) {
   map.on('click', (event) => callback(event.latlng));
 }
 
-// Remplace tous les pins par la liste fournie
-export function renderPins(destinations, onSelect) {
+// Remplace tous les pins et tracés de roadtrip par ceux fournis
+export function renderPins(destinations, roadtrips, onSelect) {
   markers.forEach(({ marker }) => marker.remove());
   markers.clear();
+
+  // Pour chaque destination : son (premier) roadtrip et ses numéros d'étape dans celui-ci
+  const membership = new Map();
+  for (const roadtrip of roadtrips) {
+    for (const etape of [...roadtrip.roadtrip_etapes].sort((a, b) => a.position - b.position)) {
+      const entry = membership.get(etape.destination_id) ?? { roadtrip, steps: [] };
+      if (entry.roadtrip === roadtrip) entry.steps.push(etape.position);
+      membership.set(etape.destination_id, entry);
+    }
+  }
+
   for (const destination of destinations) {
+    const { roadtrip, steps } = membership.get(destination.id) ?? {};
+    const style = {
+      color: destination.couleur,
+      ring: roadtrip ? roadtripColor(roadtrip) : null,
+      step: steps?.join('·'),
+    };
     const marker = L.marker([destination.lat, destination.lng], {
-      icon: pinIcon(destination.couleur, destination.id === activeId),
+      icon: pinIcon(style, destination.id === activeId),
       title: destination.nom,
       alt: destination.nom,
       keyboard: true,
     });
-    marker.bindTooltip(destination.nom, { direction: 'top', offset: [0, -34] });
+    const label = roadtrip ? `${destination.nom} · ${roadtrip.nom}` : destination.nom;
+    marker.bindTooltip(label, { direction: 'top', offset: [0, -34] });
     marker.on('click', () => onSelect(destination));
     marker.addTo(map);
-    markers.set(destination.id, { marker, color: destination.couleur });
+    markers.set(destination.id, { marker, style });
   }
+
+  // Tracé en pointillés légers reliant les étapes de chaque roadtrip
+  roadtripLayer?.remove();
+  roadtripLayer = L.layerGroup();
+  for (const roadtrip of roadtrips) {
+    const stops = roadtripStops(destinations, roadtrip);
+    if (stops.length < 2) continue;
+    L.polyline(stops.map((d) => [d.lat, d.lng]), {
+      color: roadtripColor(roadtrip),
+      weight: 3,
+      opacity: 0.6,
+      dashArray: '1 9',
+      lineCap: 'round',
+      lineJoin: 'round',
+    }).bindTooltip(roadtrip.nom, { sticky: true }).addTo(roadtripLayer);
+  }
+  updateRoadtripVisibility();
 }
 
 // Met en évidence le pin de la destination ouverte (null = aucun)
 export function setActivePin(id) {
   const previous = markers.get(activeId);
-  previous?.marker.setIcon(pinIcon(previous.color, false));
+  previous?.marker.setIcon(pinIcon(previous.style, false));
   activeId = id;
   const next = markers.get(id);
-  next?.marker.setIcon(pinIcon(next.color, true));
+  next?.marker.setIcon(pinIcon(next.style, true));
+}
+
+// Cadre la carte sur toutes les étapes d'un roadtrip
+export function fitStops(stops) {
+  if (stops.length) map.flyToBounds(stops.map((d) => [d.lat, d.lng]), { padding: [60, 60], maxZoom: 9, duration: 0.8 });
 }
 
 export function flyTo(lat, lng, zoom = 9) {

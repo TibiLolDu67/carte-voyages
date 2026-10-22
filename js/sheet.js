@@ -7,6 +7,7 @@ import {
 import { currentEditor } from './auth.js';
 import { esc, openForm, confirmDialog, toast, showImage } from './ui.js';
 import { photoUrl, setSejourPhoto, clearSejourPhoto, removePhotos } from './photos.js';
+import { roadtripColor } from './map.js';
 
 const sheet = document.getElementById('sheet');
 
@@ -173,16 +174,23 @@ function render() {
     <button class="tab" type="button" role="tab" id="tab-${t.id}" data-action="tab" data-tab="${t.id}"
       aria-selected="${t.id === activeTab}" aria-controls="tab-panel">${t.label}</button>`).join('');
 
+  const roadtrips = handlers.getRoadtrips?.(current) ?? [];
   sheet.innerHTML = `
     <div class="sheet-header">
       <div class="sheet-heading">
         <h2 id="sheet-title">${esc(current.nom)}</h2>
         ${current.pays ? `<p>${esc(current.pays)}</p>` : ''}
+        ${roadtrips.map((roadtrip) => `
+          <button class="roadtrip-badge" type="button" data-action="show-roadtrip" data-id="${esc(roadtrip.id)}" title="Voir tout le roadtrip sur la carte">
+            <span class="roadtrip-dot" style="background:${roadtripColor(roadtrip)}"></span>
+            🚗 ${esc(roadtrip.nom)}
+          </button>`).join('')}
       </div>
       <button class="btn btn-icon" type="button" data-action="close" aria-label="Fermer la fiche">✕</button>
     </div>
     <div class="sheet-tools editor-only">
-      <button class="btn btn-small" type="button" data-action="edit-destination">Modifier la destination</button>
+      <button class="btn btn-small" type="button" data-action="edit-destination">Modifier</button>
+      <button class="btn btn-small" type="button" data-action="roadtrip">${roadtrips.length ? 'Roadtrip' : '＋ Roadtrip'}</button>
       <button class="btn btn-small btn-danger" type="button" data-action="delete-destination">Supprimer</button>
     </div>
     ${chips ? `<div class="chips" aria-label="Séjours">${chips}</div>` : ''}
@@ -390,6 +398,8 @@ async function handleAction(action, button) {
     case 'close': closeSheet(); break;
     case 'edit-destination': handlers.onEdit(current); break;
     case 'delete-destination': handlers.onDelete(current); break;
+    case 'roadtrip': handlers.onRoadtrip(current); break;
+    case 'show-roadtrip': handlers.onShowRoadtrip(id); break;
     case 'tab': activeTab = button.dataset.tab; render(); break;
     case 'select-sejour':
       selectedSejourId = id;
@@ -450,8 +460,9 @@ async function handleAction(action, button) {
 }
 
 // ---------- API du module ----------
-export function initSheet({ onEdit, onDelete, onClose }) {
-  handlers = { onEdit, onDelete, onClose };
+export function initSheet(options) {
+  // onEdit, onDelete, onClose, onRoadtrip, onShowRoadtrip, getRoadtrips
+  handlers = options;
   // Liste des éditeurs : sert à afficher et choisir l'auteur des avis
   listEditors().then((list) => { editors = list; }).catch(() => {});
 

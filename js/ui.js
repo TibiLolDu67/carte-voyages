@@ -22,6 +22,18 @@ export function toast(message, { error = false } = {}) {
   toastTimer = setTimeout(() => { toastEl.hidden = true; }, error ? 5000 : 2500);
 }
 
+// Une ligne de la liste d'étapes : numéro (compteur CSS), nom, boutons ↑ ↓ ✕
+function stepItemHtml(name, value, label) {
+  return `
+    <li class="step">
+      <input type="hidden" name="${esc(name)}" value="${esc(value)}">
+      <span class="step-name">${esc(label)}</span>
+      <button type="button" class="btn btn-icon btn-small" data-step="up" aria-label="Monter ${esc(label)}">↑</button>
+      <button type="button" class="btn btn-icon btn-small" data-step="down" aria-label="Descendre ${esc(label)}">↓</button>
+      <button type="button" class="btn btn-icon btn-small btn-danger" data-step="remove" aria-label="Retirer ${esc(label)}">✕</button>
+    </li>`;
+}
+
 // Génère le HTML d'un champ de formulaire
 function fieldHtml(field, index) {
   const id = `f-${index}-${field.name}`;
@@ -50,6 +62,41 @@ function fieldHtml(field, index) {
       </label>`;
     return `<fieldset class="field"><legend>${esc(field.label)}</legend><div class="swatches">${swatches}${custom}</div></fieldset>`;
   }
+  if (field.type === 'steps') {
+    // Liste ordonnée et numérotée ; une même option peut être ajoutée plusieurs fois
+    const labelOf = new Map(field.options.map((o) => [o.value, o.label]));
+    const items = (field.value ?? []).map((v) => stepItemHtml(field.name, v, labelOf.get(v) ?? '?')).join('');
+    let group = null;
+    const optionsHtml = field.options.map((o) => {
+      const open = o.group !== group ? `${group !== null ? '</optgroup>' : ''}<optgroup label="${esc(o.group || 'Autres')}">` : '';
+      group = o.group;
+      return `${open}<option value="${esc(o.value)}">${esc(o.label)}</option>`;
+    }).join('') + (group !== null ? '</optgroup>' : '');
+    return `
+      <fieldset class="field">
+        <legend>${esc(field.label)}</legend>
+        <ol class="steps" data-steps="${esc(field.name)}">${items}</ol>
+        <div class="step-add">
+          <select data-step-select aria-label="Étape à ajouter">${optionsHtml}</select>
+          <button type="button" class="btn btn-small" data-step="add">＋ Ajouter</button>
+        </div>
+      </fieldset>`;
+  }
+  if (field.type === 'checklist') {
+    // Liste de cases à cocher, avec intertitres quand le groupe change (ex. pays)
+    const checked = new Set(field.value ?? []);
+    let group = null;
+    const items = field.options.map((o) => {
+      const heading = o.group !== group ? `<p class="checklist-group">${esc(o.group || 'Autres')}</p>` : '';
+      group = o.group;
+      return `${heading}
+        <label class="checklist-item">
+          <input type="checkbox" name="${esc(field.name)}" value="${esc(o.value)}" ${checked.has(o.value) ? 'checked' : ''}>
+          <span>${esc(o.label)}${o.hint ? `<small>${esc(o.hint)}</small>` : ''}</span>
+        </label>`;
+    }).join('');
+    return `<fieldset class="field"><legend>${esc(field.label)}</legend><div class="checklist">${items}</div></fieldset>`;
+  }
   let control;
   if (field.type === 'textarea') {
     control = `<textarea ${common}>${esc(value)}</textarea>`;
@@ -68,8 +115,10 @@ function fieldHtml(field, index) {
  * Ouvre un formulaire modal.
  * onSubmit(values) peut être asynchrone : s'il lève une erreur, elle s'affiche
  * dans le formulaire, qui reste ouvert. Renvoie le résultat de onSubmit, ou null si annulé.
+ * dangerLabel (facultatif) ajoute un bouton rouge à gauche : il ferme le formulaire
+ * et renvoie { danger: true } (l'appelant demande alors confirmation).
  */
-export function openForm({ title, intro = '', fields, submitLabel = 'Enregistrer', onSubmit }) {
+export function openForm({ title, intro = '', fields, submitLabel = 'Enregistrer', dangerLabel = '', onSubmit }) {
   modal.innerHTML = `
     <form method="dialog" novalidate>
       <h2>${esc(title)}</h2>
@@ -77,6 +126,7 @@ export function openForm({ title, intro = '', fields, submitLabel = 'Enregistrer
       ${fields.map(fieldHtml).join('')}
       <p class="form-error" hidden></p>
       <div class="modal-actions">
+        ${dangerLabel ? `<button type="button" class="btn btn-danger modal-danger" data-danger>${esc(dangerLabel)}</button>` : ''}
         <button type="button" class="btn" data-cancel>Annuler</button>
         <button type="submit" class="btn btn-primary">${esc(submitLabel)}</button>
       </div>
@@ -91,7 +141,25 @@ export function openForm({ title, intro = '', fields, submitLabel = 'Enregistrer
       resolve(result);
     };
     form.querySelector('[data-cancel]').addEventListener('click', () => close(null));
+    form.querySelector('[data-danger]')?.addEventListener('click', () => close({ danger: true }));
     modal.oncancel = (event) => { event.preventDefault(); close(null); };
+
+    // Liste d'étapes : ajouter, monter, descendre, retirer (les numéros se recalculent en CSS)
+    form.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-step]');
+      if (!button) return;
+      const fieldset = button.closest('fieldset');
+      const list = fieldset.querySelector('[data-steps]');
+      const item = button.closest('.step');
+      if (button.dataset.step === 'up') item.previousElementSibling?.before(item);
+      if (button.dataset.step === 'down') item.nextElementSibling?.after(item);
+      if (button.dataset.step === 'remove') item.remove();
+      if (button.dataset.step === 'add') {
+        const option = fieldset.querySelector('[data-step-select]').selectedOptions[0];
+        list.insertAdjacentHTML('beforeend', stepItemHtml(list.dataset.steps, option.value, option.textContent));
+        list.lastElementChild.scrollIntoView({ block: 'nearest' });
+      }
+    });
 
     // Couleur libre : la valeur choisie devient celle de la pastille « Autre couleur »
     form.addEventListener('input', (event) => {
@@ -106,7 +174,11 @@ export function openForm({ title, intro = '', fields, submitLabel = 'Enregistrer
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (!form.reportValidity()) return;
-      const values = Object.fromEntries(new FormData(form));
+      const data = new FormData(form);
+      const values = Object.fromEntries(data);
+      // Cases à cocher et liste d'étapes renvoient toutes leurs valeurs (dans l'ordre affiché)
+      fields.filter((f) => f.type === 'checklist' || f.type === 'steps')
+        .forEach((f) => { values[f.name] = data.getAll(f.name); });
       submitBtn.disabled = true;
       errorEl.hidden = true;
       try {

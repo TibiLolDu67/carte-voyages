@@ -1,11 +1,13 @@
 // Point d'entrée : relie la carte, la recherche, la fiche et l'authentification.
 import {
   listDestinations, createDestination, updateDestination, deleteDestination, listPhotoPaths, errorMessage,
+  listRoadtrips, saveRoadtrip, deleteRoadtrip,
 } from './db.js';
 import { removePhotos } from './photos.js';
 import { initAuth, onAuthChange, isEditor, currentEditor, signIn, signOut } from './auth.js';
 import {
   createMap, onMapClick, renderPins, setActivePin, flyTo, refreshMapSize, PIN_COLORS, DEFAULT_PIN_COLOR,
+  roadtripStops, fitStops,
 } from './map.js';
 import { searchPlaces, reversePlace } from './geocode.js';
 import { initSheet, openSheet, closeSheet, currentDestination } from './sheet.js';
@@ -21,6 +23,7 @@ const authBtn = document.getElementById('auth-btn');
 
 // Liste affichée, toujours relue depuis la base après chaque modification
 let destinations = [];
+let roadtrips = [];
 let signedIn = false;
 
 // ---------- Mise en page : la carte démarre sous la barre du haut ----------
@@ -48,15 +51,18 @@ window.addEventListener('hashchange', showRoute);
 function updateHomeStats() {
   const countries = new Set(destinations.map((d) => d.pays).filter(Boolean)).size;
   const n = destinations.length;
-  homeStats.textContent = n ? `${n} destination${n > 1 ? 's' : ''} · ${countries} pays` : '';
+  const r = roadtrips.length;
+  homeStats.textContent = n
+    ? `${n} destination${n > 1 ? 's' : ''} · ${countries} pays${r ? ` · ${r} roadtrip${r > 1 ? 's' : ''}` : ''}`
+    : '';
 }
 
-// ---------- Chargement des destinations ----------
+// ---------- Chargement des destinations et roadtrips ----------
 async function loadDestinations() {
   try {
-    destinations = await listDestinations();
+    [destinations, roadtrips] = await Promise.all([listDestinations(), listRoadtrips()]);
     updateHomeStats();
-    renderPins(destinations, selectDestination);
+    renderPins(destinations, roadtrips, selectDestination);
     setActivePin(currentDestination()?.id ?? null);
   } catch (error) {
     toast(errorMessage(error), { error: true });
@@ -142,10 +148,97 @@ async function removeDestination(destination) {
   }
 }
 
+// ---------- Roadtrips ----------
+// Roadtrips dont la destination est une étape
+const roadtripsOf = (destination) =>
+  roadtrips.filter((r) => r.roadtrip_etapes.some((e) => e.destination_id === destination?.id));
+
+// Bouton « Roadtrip » de la fiche : modifie directement le roadtrip de la destination
+// s'il n'y en a qu'un, sinon demande lequel (ou d'en créer un nouveau)
+async function manageRoadtrip(destination) {
+  const mine = roadtripsOf(destination);
+  let roadtrip = mine.length === 1 ? mine[0] : null;
+  if (!roadtrip && roadtrips.length) {
+    const choice = await openForm({
+      title: 'Choisir un roadtrip',
+      fields: [{
+        name: 'roadtrip',
+        label: 'Roadtrip',
+        type: 'select',
+        value: (mine[0] ?? roadtrips[roadtrips.length - 1]).id,
+        options: [...roadtrips.map((r) => ({ value: r.id, label: r.nom })), { value: 'new', label: '＋ Nouveau roadtrip' }],
+      }],
+      submitLabel: 'Continuer',
+    });
+    if (!choice) return;
+    roadtrip = roadtrips.find((r) => r.id === choice.roadtrip) ?? null;
+  }
+  await roadtripForm(roadtrip, destination);
+}
+
+async function roadtripForm(roadtrip, destination) {
+  // Étapes actuelles dans l'ordre ; la destination ouverte est ajoutée à la fin si absente
+  const steps = roadtripStops(destinations, roadtrip).map((d) => d.id);
+  if (!steps.includes(destination.id)) steps.push(destination.id);
+
+  // Toutes les destinations, groupées par pays (celui de la destination en premier)
+  const samePays = (d) => (d.pays === destination.pays ? 0 : 1);
+  const options = [...destinations]
+    .sort((a, b) => samePays(a) - samePays(b)
+      || (a.pays ?? '').localeCompare(b.pays ?? '', 'fr') || a.nom.localeCompare(b.nom, 'fr'))
+    .map((d) => ({ value: d.id, label: d.nom, group: d.pays }));
+
+  const result = await openForm({
+    title: roadtrip ? 'Modifier le roadtrip' : 'Nouveau roadtrip',
+    intro: 'Le tracé relie les étapes dans l\'ordre des numéros. Une ville peut revenir plusieurs fois.',
+    fields: [
+      { name: 'nom', label: 'Nom du roadtrip', value: roadtrip?.nom ?? (destination.pays ? `Roadtrip ${destination.pays}` : ''), required: true, attrs: 'maxlength="80"' },
+      { name: 'couleur', label: 'Couleur du tracé et des contours', type: 'swatches', value: roadtrip?.couleur ?? '#111827', options: PIN_COLORS },
+      { name: 'etapes', label: 'Étapes (dans l\'ordre du trajet)', type: 'steps', value: steps, options },
+    ],
+    submitLabel: roadtrip ? 'Enregistrer' : 'Créer le roadtrip',
+    dangerLabel: roadtrip ? 'Supprimer' : '',
+    onSubmit: async (values) => {
+      if (!values.etapes.length) throw new Error('Ajoutez au moins une étape.');
+      try {
+        return await saveRoadtrip(roadtrip?.id, { nom: values.nom.trim(), couleur: values.couleur || null }, values.etapes);
+      } catch (error) {
+        throw new Error(errorMessage(error));
+      }
+    },
+  });
+  if (!result) return;
+
+  if (result.danger) {
+    const ok = await confirmDialog(`Supprimer le roadtrip « ${roadtrip.nom} » ? Ses destinations restent sur la carte.`);
+    if (!ok) return;
+    try {
+      await deleteRoadtrip(roadtrip.id);
+      toast('Roadtrip supprimé');
+    } catch (error) {
+      toast(errorMessage(error), { error: true });
+    }
+  } else {
+    toast(roadtrip ? 'Roadtrip modifié' : 'Roadtrip créé');
+  }
+  await loadDestinations();
+  openSheet(destinations.find((d) => d.id === destination.id) ?? destination);
+  if (!result.danger) fitStops(roadtripStops(destinations, roadtrips.find((r) => r.id === result.id)));
+}
+
+// Clic sur un badge de roadtrip : cadre la carte sur tout le tracé
+function showRoadtrip(roadtripId) {
+  const roadtrip = roadtrips.find((r) => r.id === roadtripId);
+  if (roadtrip) fitStops(roadtripStops(destinations, roadtrip));
+}
+
 initSheet({
   onEdit: editDestination,
   onDelete: removeDestination,
   onClose: () => setActivePin(null),
+  onRoadtrip: manageRoadtrip,
+  onShowRoadtrip: showRoadtrip,
+  getRoadtrips: roadtripsOf,
 });
 
 // ---------- Recherche ----------

@@ -47,6 +47,28 @@ create table if not exists public.destinations (
 alter table public.destinations
   add column if not exists couleur text check (couleur ~ '^#[0-9a-f]{6}$');
 
+-- Roadtrips : groupe de destinations reliées par un tracé sur la carte.
+-- Supprimer un roadtrip ne supprime pas ses destinations (elles sont juste détachées).
+create table if not exists public.roadtrips (
+  id         uuid primary key default gen_random_uuid(),
+  nom        text not null check (char_length(nom) between 1 and 80),
+  couleur    text check (couleur ~ '^#[0-9a-f]{6}$'),
+  created_at timestamptz not null default now()
+);
+
+-- Étapes d'un roadtrip, numérotées (position 1, 2, 3…).
+-- Une même destination peut apparaître plusieurs fois (aller-retour, boucle…).
+create table if not exists public.roadtrip_etapes (
+  id             uuid primary key default gen_random_uuid(),
+  roadtrip_id    uuid not null references public.roadtrips (id) on delete cascade,
+  destination_id uuid not null references public.destinations (id) on delete cascade,
+  position       integer not null check (position >= 1),
+  unique (roadtrip_id, position)
+);
+
+-- Ancien modèle (une destination = un seul roadtrip) : remplacé par roadtrip_etapes
+alter table public.destinations drop column if exists roadtrip_id;
+
 create table if not exists public.sejours (
   id             uuid primary key default gen_random_uuid(),
   destination_id uuid not null references public.destinations (id) on delete cascade,
@@ -87,6 +109,8 @@ create table if not exists public.commentaires (
 );
 
 -- Index sur les clés étrangères (accélère les fiches et les cascades)
+create index if not exists etapes_roadtrip_idx          on public.roadtrip_etapes (roadtrip_id);
+create index if not exists etapes_destination_idx       on public.roadtrip_etapes (destination_id);
 create index if not exists sejours_destination_idx      on public.sejours (destination_id);
 create index if not exists lieux_sejour_idx             on public.lieux (sejour_id);
 create index if not exists specialites_sejour_idx       on public.specialites (sejour_id);
@@ -100,10 +124,12 @@ create index if not exists commentaires_destination_idx on public.commentaires (
 -- ---------------------------------------------------------------------
 grant usage on schema public to anon, authenticated;
 grant select on public.editeurs, public.destinations, public.sejours,
-                public.lieux, public.specialites, public.commentaires
+                public.lieux, public.specialites, public.commentaires, public.roadtrips,
+                public.roadtrip_etapes
   to anon, authenticated;
 grant insert, update, delete on public.destinations, public.sejours,
-                public.lieux, public.specialites, public.commentaires
+                public.lieux, public.specialites, public.commentaires, public.roadtrips,
+                public.roadtrip_etapes
   to authenticated;
 
 
@@ -122,7 +148,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['destinations', 'sejours', 'lieux', 'specialites', 'commentaires']
+  foreach t in array array['destinations', 'sejours', 'lieux', 'specialites', 'commentaires', 'roadtrips', 'roadtrip_etapes']
   loop
     execute format('alter table public.%I enable row level security', t);
 
@@ -144,6 +170,25 @@ begin
   end loop;
 end
 $$;
+
+-- Remplace d'un coup (en une transaction) la liste ordonnée des étapes d'un roadtrip.
+-- "security invoker" : les politiques RLS ci-dessus s'appliquent (éditeurs uniquement).
+create or replace function public.set_roadtrip_etapes(p_roadtrip uuid, p_destinations uuid[])
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  delete from public.roadtrip_etapes where roadtrip_id = p_roadtrip;
+  insert into public.roadtrip_etapes (roadtrip_id, destination_id, position)
+  select p_roadtrip, d, t.ord::integer
+  from unnest(p_destinations) with ordinality as t(d, ord);
+end;
+$$;
+
+revoke execute on function public.set_roadtrip_etapes(uuid, uuid[]) from public, anon;
+grant execute on function public.set_roadtrip_etapes(uuid, uuid[]) to authenticated;
 
 
 -- ---------------------------------------------------------------------

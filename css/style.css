@@ -332,6 +332,33 @@ body.add-mode #map { cursor: crosshair; }
   box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.55), 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
+/* Pin membre d'un roadtrip : contour épais de la couleur du roadtrip, liseré blanc autour */
+.pin.in-roadtrip span {
+  border-width: 4px;
+  box-shadow: 0 0 0 2px #fff, 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+/* Numéro(s) d'étape sur le pin, visibles seulement quand on zoome */
+.pin-step {
+  display: none;
+  position: absolute;
+  top: -6px;
+  left: 28px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  border: 2px solid #fff;
+  color: #fff;
+  font: 700 11px/16px var(--font-body);
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.show-roadtrip-steps .pin-step { display: block; }
+.pin.in-roadtrip.is-active span {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 7px rgba(255, 255, 255, 0.5), 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
 /* =====================================================================
    Résultats de recherche, bandeau, messages
    ===================================================================== */
@@ -448,6 +475,29 @@ body.add-mode #map { cursor: crosshair; }
 .sheet-header h2 { margin: 0; font-size: 1.7rem; line-height: 1.15; overflow-wrap: anywhere; }
 .sheet-header p { margin: 2px 0 0; color: var(--muted); font-weight: 500; }
 .sheet-heading { flex: 1; min-width: 0; }
+.roadtrip-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  margin-top: 6px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.roadtrip-badge:hover { border-color: var(--text); }
+.roadtrip-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--border);
+}
 .sheet-tools { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 16px 10px; }
 .sheet-body { flex: 1; overflow: auto; padding: 14px 16px 22px; }
 .muted { color: var(--muted); }
@@ -597,9 +647,89 @@ button.item-main { min-height: var(--tap); cursor: pointer; }
 .field textarea { min-height: 96px; resize: vertical; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .form-error { color: var(--danger); font-weight: 600; }
+.modal-danger { margin-right: auto; }
+
+/* Liste ordonnée des étapes d'un roadtrip : numéros automatiques (compteur CSS) */
+.steps {
+  counter-reset: step;
+  list-style: none;
+  margin: 0;
+  padding: 4px 8px;
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.steps:empty::after { content: "Aucune étape : ajoutez-en ci-dessous."; display: block; padding: 10px 4px; color: var(--muted); }
+.step {
+  counter-increment: step;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+}
+.step:last-child { border-bottom: none; }
+.step::before {
+  content: counter(step);
+  flex: 0 0 28px;
+  height: 28px;
+  margin-right: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.step-name { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.step .btn { border-color: transparent; background: none; }
+.step .btn:hover { background: var(--bg); }
+.step-add { display: flex; gap: 6px; margin-top: 8px; }
+.step-add select {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+/* Liste de cases à cocher */
+.checklist {
+  max-height: 260px;
+  overflow: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.checklist-group {
+  margin: 8px 0 2px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  cursor: pointer;
+}
+.checklist-item input { width: 20px; height: 20px; flex: 0 0 auto; accent-color: var(--accent); }
+.checklist-item small { display: block; color: var(--muted); font-size: 0.8rem; }
 
 /* Choix de couleur : pastilles de 44 px */
-fieldset.field { margin: 0; padding: 0; border: none; }
+/* min-width: 0 : sinon un fieldset s'élargit à son contenu (liste déroulante longue) */
+fieldset.field { margin: 0; padding: 0; border: none; min-width: 0; }
 fieldset.field legend { padding: 0; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; }
 .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
 .swatch { position: relative; width: var(--tap); height: var(--tap); cursor: pointer; }
