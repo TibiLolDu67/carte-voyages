@@ -73,11 +73,28 @@ function updateRoadtripVisibility() {
 
 export function createMap(element) {
   map = L.map(element, { worldCopyJump: true, zoomControl: true }).setView([35, 10], 3);
-  // Tuiles OpenStreetMap (sans clé) ; leurs couleurs sont adoucies en CSS (.leaflet-tile-pane)
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // Tuiles d'OpenStreetMap France (sans clé) : noms de lieux en français partout
+  // (« Allemagne », « Venise »…). Couleurs adoucies en CSS (.leaflet-tile-pane).
+  const frenchTiles = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    subdomains: 'abc',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, fond <a href="https://www.openstreetmap.fr/">OSM France</a>',
   }).addTo(map);
+
+  // Secours : si le serveur français ne répond pas, on bascule sur les tuiles OSM standard
+  let loaded = 0;
+  let failed = 0;
+  frenchTiles.on('tileload', () => { loaded += 1; });
+  frenchTiles.on('tileerror', () => {
+    failed += 1;
+    if (failed === 6 && loaded === 0) {
+      frenchTiles.remove();
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(map);
+    }
+  });
   map.on('zoomend', updateRoadtripVisibility);
   return map;
 }
