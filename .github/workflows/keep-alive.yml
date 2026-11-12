@@ -1,20 +1,28 @@
-# Évite la mise en pause du projet Supabase gratuit (pause après ~7 jours sans activité).
-# Deux fois par semaine, GitHub fait une simple lecture publique de la base.
+# Évite la mise en pause du projet Supabase gratuit.
+# Supabase met en pause un projet qui n'a pas reçu « quelques requêtes en base chaque jour »
+# pendant 7 jours : deux lectures par semaine ne suffisaient pas (pause du 9 novembre 2026).
+# On fait donc plusieurs lectures publiques, deux fois par jour.
 # Utilise uniquement la clé publique (déjà visible dans js/config.js).
 name: Supabase keep-alive
 
 on:
   schedule:
-    - cron: '17 6 * * 1,4' # lundi et jeudi, 6 h 17 UTC
-  workflow_dispatch: {}     # bouton « Run workflow » pour tester à la main
+    - cron: '17 7 * * *'  # tous les jours, 7 h 17 UTC
+    - cron: '43 18 * * *' # tous les jours, 18 h 43 UTC
+  workflow_dispatch: {}   # bouton « Run workflow » pour tester à la main
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Lecture d'une destination
+      - uses: actions/checkout@v5
+      - name: Lectures en base
         run: |
           URL=$(grep -oP "SUPABASE_URL = '\K[^']+" js/config.js)
           KEY=$(grep -oP "SUPABASE_ANON_KEY = '\K[^']+" js/config.js)
-          curl --fail --silent --show-error "$URL/rest/v1/destinations?select=id&limit=1" -H "apikey: $KEY"
+          for table in destinations sejours roadtrips commentaires; do
+            # 3 tentatives espacées : un incident réseau passager ne fait pas échouer la tâche
+            curl --fail --silent --show-error --retry 3 --retry-delay 20 --retry-all-errors \
+              "$URL/rest/v1/$table?select=id&limit=5" -H "apikey: $KEY" > /dev/null
+            echo "$table : OK"
+          done

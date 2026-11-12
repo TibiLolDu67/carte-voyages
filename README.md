@@ -99,7 +99,10 @@ pas seulement par l'interface).
 | Projets actifs | 2 par compte | ce projet + l'appli de musculation |
 
 **Mise en pause** : un projet gratuit est suspendu après environ 7 jours sans activité.
-- Le workflow `.github/workflows/keep-alive.yml` fait une lecture deux fois par semaine pour l'éviter.
+- Le workflow `.github/workflows/keep-alive.yml` fait plusieurs lectures en base deux fois par jour pour l'éviter
+  (Supabase demande « quelques requêtes en base chaque jour » ; deux lectures par semaine ne suffisaient pas).
+  En cas d'échec, GitHub envoie un email « Supabase keep-alive: All jobs have failed » : vérifier alors l'état
+  du projet dans le tableau de bord Supabase.
   GitHub désactive les tâches planifiées d'un dépôt sans commit depuis 60 jours : il envoie alors
   un email, et il suffit de cliquer sur « Enable workflow » dans l'onglet Actions.
 - Si le projet est en pause malgré tout : le site affiche « Connexion impossible au serveur ».
